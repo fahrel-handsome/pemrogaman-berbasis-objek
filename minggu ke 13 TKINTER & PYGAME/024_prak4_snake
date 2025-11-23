@@ -1,0 +1,220 @@
+import pygame
+import sys
+import random
+import time
+
+# Buat Kelas Dasar GameObject
+class GameObject:
+    def __init__(self, color, position):
+        self.color = color      # Warna objek
+        self.position = position  # Posisi objek
+
+    def draw(self, game_window):
+        # Menggambar objek kotak (10x10)
+        pygame.draw.rect(game_window, self.color,
+                         pygame.Rect(self.position[0], self.position[1], 10, 10))
+
+# Membuat kelas Snake
+class Snake(GameObject):
+    def __init__(self, position):
+        super().__init__(pygame.Color(0, 255, 0), position) # Warna Ular: Hijau
+        # Tubuh awal ular 
+        self.body = [list(position),
+                     [position[0] - 10, position[1]],
+                     [position[0] - 20, position[1]]]
+        self.direction = "RIGHT"
+        self.change_to = self.direction
+
+    # Fungsi ganti arah
+    def change_direction(self, direction):
+        if direction == "UP" and self.direction != "DOWN":
+            self.change_to = "UP"
+        if direction == "DOWN" and self.direction != "UP":
+            self.change_to = "DOWN"
+        if direction == "LEFT" and self.direction != "RIGHT":
+            self.change_to = "LEFT"
+        if direction == "RIGHT" and self.direction != "LEFT":
+            self.change_to = "RIGHT"
+
+    # Fungsi bergerak
+    def move(self):
+        # Terapkan perubahan arah
+        self.direction = self.change_to
+
+        # Gerakkan kepala
+        if self.direction == "UP":
+            self.position[1] -= 10
+        if self.direction == "DOWN":
+            self.position[1] += 10
+        if self.direction == "LEFT":
+            self.position[0] -= 10
+        if self.direction == "RIGHT":
+            self.position[0] += 10
+
+        # Tambah kepala baru ke tubuh
+        self.body.insert(0, list(self.position))
+
+    # Fungsi mengecilkan tubuh
+    def shrink(self):
+        self.body.pop()
+
+    # Fungsi menggambar ular
+    def draw(self, game_window):
+        for pos in self.body:
+            pygame.draw.rect(game_window, self.color,
+                             pygame.Rect(pos[0], pos[1], 10, 10))
+
+    # Fungsi cek tabrakan
+    def check_collision(self, frame_size_x, frame_size_y):
+        # Tabrak dinding
+        if self.position[0] < 0 or self.position[0] > frame_size_x - 10:
+            return True
+        if self.position[1] < 0 or self.position[1] > frame_size_y - 10:
+            return True
+
+        # Tabrak tubuh sendiri
+        if self.position in self.body[1::]: # Mulai dari segmen ke-2
+            return True
+
+        return False
+
+# Membuat kelas Apple 
+class Apple(GameObject):
+    def __init__(self, frame_size_x, frame_size_y, color=pygame.Color(255, 0, 0)):
+        x = random.randrange(1, (frame_size_x // 10)) * 10
+        y = random.randrange(1, (frame_size_y // 10)) * 10
+        super().__init__(color, [x, y]) 
+
+    def respawn(self, frame_size_x, frame_size_y):
+        self.position[0] = random.randrange(1, (frame_size_x // 10)) * 10
+        self.position[1] = random.randrange(1, (frame_size_y // 10)) * 10
+
+
+# Membuat kelas Game
+class Game:
+    def __init__(self):
+        # Inisialisasi pygame
+        pygame.init()
+        pygame.mixer.init() # Inisialisasi mixer suara
+        
+        # Pengaturan jendela
+        self.frame_size_x = 720
+        self.frame_size_y = 480
+        self.game_window = pygame.display.set_mode((self.frame_size_x, self.frame_size_y))
+        pygame.display.set_caption("Snake Game - 2 Apples & Sound")
+
+        # Pengaturan FPS
+        self.fps_controller = pygame.time.Clock()
+
+        # --- LOAD SUARA ---
+        try:
+            self.eat_sound = pygame.mixer.Sound('eat.mp3') 
+        except:
+            print("File suara tidak ditemukan, lanjut tanpa suara.")
+            self.eat_sound = None
+
+        # Buat objek game
+        self.snake = Snake([100, 50])
+        
+        # --- BUAT 2 APPLE ---
+        # Apple 1: Merah 
+        self.apple1 = Apple(self.frame_size_x, self.frame_size_y, pygame.Color(255, 0, 0))
+        # Apple 2: item
+        self.apple2 = Apple(self.frame_size_x, self.frame_size_y, pygame.Color(0, 0, 0))
+        
+        self.score = 0
+
+    # Fungsi Game Over
+    def game_over(self):
+        my_font = pygame.font.SysFont("arial", 50)
+        game_over_surface = my_font.render("YOU DIED", True, pygame.Color(255, 0, 0))
+        game_over_rect = game_over_surface.get_rect()
+        game_over_rect.midtop = (self.frame_size_x / 2, self.frame_size_y / 4)
+
+        self.game_window.fill(pygame.Color(0, 0, 0)) # Layar hitam
+        self.game_window.blit(game_over_surface, game_over_rect)
+        pygame.display.flip()
+        
+        time.sleep(3) # Tunggu 3 detik
+        pygame.quit()
+        sys.exit()
+
+    # Fungsi Tampilkan Skor
+    def show_score(self):
+        score_font = pygame.font.SysFont("Arial", 20)
+        score_surface = score_font.render(f"Score : {self.score}", True, pygame.Color(0, 0, 0))
+        score_rect = score_surface.get_rect()
+        score_rect.midtop = (72, 15)
+        self.game_window.blit(score_surface, score_rect)
+
+    # Method `run`
+    def run(self):
+        while True:
+            # Input event
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_UP:
+                        self.snake.change_direction("UP")
+                    if event.key == pygame.K_DOWN:
+                        self.snake.change_direction("DOWN")
+                    if event.key == pygame.K_LEFT:
+                        self.snake.change_direction("LEFT")
+                    if event.key == pygame.K_RIGHT:
+                        self.snake.change_direction("RIGHT")
+                    if event.key == pygame.K_ESCAPE:
+                        pygame.event.post(pygame.event.Event(pygame.QUIT))
+
+            # --- LOGIKA GAME ---
+            
+            # Gerakkan ular
+            self.snake.move()
+
+            # Cek apakah memakan SALAH SATU apel
+            ate_apple1 = (self.snake.position == self.apple1.position)
+            ate_apple2 = (self.snake.position == self.apple2.position)
+
+            if ate_apple1 or ate_apple2:
+                self.score += 1
+                
+                # Mainkan suara jika file ada
+                if self.eat_sound:
+                    self.eat_sound.play()
+
+                # Respawn apel yang dimakan
+                if ate_apple1:
+                    self.apple1.respawn(self.frame_size_x, self.frame_size_y)
+                if ate_apple2:
+                    self.apple2.respawn(self.frame_size_x, self.frame_size_y)
+            else:
+                # Jika tidak makan apel manapun, kecilkan ekor
+                self.snake.shrink()
+
+            # Cek tabrakan
+            if self.snake.check_collision(self.frame_size_x, self.frame_size_y):
+                self.game_over()
+
+            # --- GAMBAR TAMPILAN ---
+            
+            # Gambar layer (background putih)
+            self.game_window.fill(pygame.Color(255, 255, 255))
+
+            self.snake.draw(self.game_window)
+            
+            # Gambar KEDUA apel
+            self.apple1.draw(self.game_window)
+            self.apple2.draw(self.game_window)
+
+            # Tampilkan skor
+            self.show_score()
+            
+            # Update layar
+            pygame.display.update()
+            
+            # Atur FPS
+            self.fps_controller.tick(10)
+
+if __name__ == "__main__":
+    Game().run()
